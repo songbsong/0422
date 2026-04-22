@@ -1,0 +1,44 @@
+{
+  "entities": {
+    "Canvas": {
+      "title": "Canvas",
+      "description": "Represents a drawing canvas state, shared or personal.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "type": { "type": "string", "enum": ["shared", "individual"] },
+        "lines": {
+          "type": "array",
+          "description": "List of drawing strokes"
+        },
+        "lastUpdated": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "type", "lines"]
+    },
+    "Post": {
+      "title": "Post",
+      "description": "A blog post containing a saved drawing and caption.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "authorId": { "type": "string" },
+        "authorName": { "type": "string" },
+        "title": { "type": "string" },
+        "content": { "type": "string" },
+        "drawingData": { "type": "array", "description": "The lines array at the time of posting" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "authorId", "title", "drawingData", "createdAt"]
+    }
+  },
+  "firestore": {
+    "canvases/{canvasId}": {
+      "schema": "Canvas",
+      "description": "Stores current canvas states."
+    },
+    "posts/{postId}": {
+      "schema": "Post",
+      "description": "Stores user published drawings on the blog."
+    }
+  }
+}

@@ -1,0 +1,72 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Default deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- Helpers ---
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // --- Validation Helpers ---
+    function isValidCanvas(data) {
+      return data.keys().hasAll(['id', 'type', 'lines', 'lastUpdated'])
+        && data.id is string && data.id.size() <= 128
+        && data.type is string && data.type in ['shared', 'individual']
+        && data.lines is list && data.lines.size() <= 1000 // Limit strokes to prevent resource abuse
+        && data.lastUpdated is timestamp;
+    }
+
+    function isValidPost(data) {
+      return data.keys().hasAll(['id', 'authorId', 'authorName', 'title', 'content', 'drawingData', 'createdAt'])
+        && data.id is string && data.id.size() <= 128
+        && data.authorId == request.auth.uid
+        && data.authorName is string && data.authorName.size() <= 100
+        && data.title is string && data.title.size() <= 200
+        && data.content is string && data.content.size() <= 2000
+        && data.drawingData is list && data.drawingData.size() <= 1000
+        && data.createdAt == request.time;
+    }
+
+    // --- Canvas Rules ---
+    match /canvases/{canvasId} {
+      allow get: if true;
+      allow list: if false; // No list queries for canvases
+
+      allow create: if isSignedIn() && isValidId(canvasId) && isValidCanvas(incoming())
+                   && (canvasId == 'shared' || canvasId == request.auth.uid);
+
+      allow update: if isSignedIn() && isValidId(canvasId)
+                   && (canvasId == 'shared' || canvasId == request.auth.uid)
+                   && incoming().diff(existing()).affectedKeys().hasOnly(['lines', 'lastUpdated'])
+                   && incoming().lines is list && incoming().lines.size() <= 1000
+                   && incoming().lastUpdated is timestamp;
+    }
+
+    // --- Blog Post Rules ---
+    match /posts/{postId} {
+      allow read: if true;
+      allow create: if isSignedIn() && isValidId(postId) && isValidPost(incoming());
+      allow update, delete: if isSignedIn() && isOwner(existing().authorId);
+    }
+  }
+}
